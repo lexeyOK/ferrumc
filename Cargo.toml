@@ -13,7 +13,7 @@ resolver = "2"
 #================= Members =================#
 members = [
     "src/bin",
-    "src/tests"
+    "src/tests",
     "src/lib/adapters/anvil",
     "src/lib/adapters/anvil",
     "src/lib/adapters/nbt",

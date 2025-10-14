@@ -8,8 +8,9 @@ ferrumc-nbt = { workspace = true }
 ferrumc-macros = { workspace = true }
 ferrumc-net-codec = { workspace = true }
 ferrumc-config = { workspace = true }
-bevy_ecs = { workspace = true}
 ferrumc-core = { workspace = true }
+ferrumc-world-gen = { workspace = true }
+bevy_ecs = { workspace = true}
 flate2 = { workspace = true }
 tokio = { workspace = true }
 maplit = { workspace = true }
