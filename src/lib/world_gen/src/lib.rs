@@ -1,6 +1,7 @@
+#![allow(unused)]
 #![feature(more_float_constants)]
 #![feature(new_range_api)]
-
+#![feature(portable_simd)]
 mod biome;
 mod biome_chunk;
 pub mod block_can_survive;
@@ -12,7 +13,7 @@ pub mod errors;
 mod nether;
 mod noise_router;
 mod overworld;
-mod perlin_noise;
+pub mod perlin_noise;
 mod pos;
 mod random;
 use crate::end::end_generator::EndGenerator;
@@ -49,17 +50,26 @@ pub enum HeightmapType {
     OceanFloorWg,
 }
 pub struct WorldGenerator {
-    generator: EndGenerator,
+    generator: OverworldGenerator,
 }
 
 impl WorldGenerator {
     pub fn new(seed: u64) -> Self {
         Self {
-            generator: EndGenerator::new(seed),
+            generator: OverworldGenerator::new(seed),
         }
     }
 
     pub fn generate_chunk(&self, x: i32, z: i32) -> Result<Chunk, WorldGenError> {
         self.generator.generate_chunk(x, z)
+    }
+
+    pub fn generate_chunk_inplace(
+        &self,
+        x: i32,
+        z: i32,
+        chunk: &mut Chunk,
+    ) -> Result<(), WorldGenError> {
+        self.generator.generate_chunk_inplace(x, z, chunk)
     }
 }

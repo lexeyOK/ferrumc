@@ -29,3 +29,19 @@ pub fn lerp3(
     lerp2(delta.xy(), start1, end1, start2, end2)
         .lerp(lerp2(delta.xy(), start3, end3, start4, end4), delta.z)
 }
+
+use std::arch::x86_64::*;
+use std::simd::f32x4;
+
+#[target_feature(enable = "sse,fma")]
+pub fn lerp3_f32x4(delta: (f32, f32, f32), start: f32x4, end: f32x4) -> f32 {
+    let start = start.into();
+    let end = end.into();
+    let t = _mm_set1_ps(delta.0);
+    let half_lerp = _mm_fnmadd_ps(start, t, start);
+    let lerp: f32x4 = _mm_fmadd_ps(end, t, half_lerp).into();
+    let [l0, l1, l2, l3] = lerp.to_array();
+    let ll0 = l3 + (l2 - l3) * delta.1;
+    let ll1 = l1 + (l0 - l1) * delta.1;
+    ll1 + (ll0 - ll1) * delta.2
+}

@@ -16,3 +16,7 @@ maplit = { workspace = true }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "testing"
+path = "src/main_test.rs"

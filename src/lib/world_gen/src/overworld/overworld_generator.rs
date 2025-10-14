@@ -64,12 +64,46 @@ impl OverworldGenerator {
         }
         .to_block_id();
         let air = BlockData::default().to_block_id();
+        // generate_interpolation_data(
+        //     &self.biome_noise,
+        //     ChunkPos::from(IVec2::new(x * 16, z * 16)),
+        //     &mut chunk,
+        // );
+        ChunkPos::from(IVec2::new(x * 16, z * 16))
+            .iter_columns()
+            .cartesian_product(self.chunk_height.iter())
+            .map(|(c, y)| c.block(y))
+            .map(|pos| {
+                let final_density = self
+                    .biome_noise
+                    .post_process(pos, self.biome_noise.pre_baked_final_density(pos));
+                chunk.set_block(
+                    pos.x,
+                    pos.y,
+                    pos.z,
+                    if final_density > 0.0 { stone } else { air },
+                )
+            })
+            .find(Result::is_err)
+            .unwrap_or(Ok(()))?;
+        Ok(chunk)
+    }
+
+    pub fn generate_chunk_inplace(
+        &self,
+        x: i32,
+        z: i32,
+        chunk: &mut Chunk,
+    ) -> Result<(), WorldGenError> {
+        chunk.x = x;
+        chunk.z = z;
+        let stone = BlockData {
+            name: "minecraft:stone".to_string(),
+            properties: None,
+        }
+        .to_block_id();
+        let air = BlockData::default().to_block_id();
         if x.abs() < 4 && z.abs() < 4 {
-            // generate_interpolation_data(
-            //     &self.biome_noise,
-            //     ChunkPos::from(IVec2::new(x * 16, z * 16)),
-            //     &mut chunk,
-            // );
             ChunkPos::from(IVec2::new(x * 16, z * 16))
                 .iter_columns()
                 .cartesian_product(self.chunk_height.iter())
@@ -88,6 +122,6 @@ impl OverworldGenerator {
                 .find(Result::is_err)
                 .unwrap_or(Ok(()))?;
         }
-        Ok(chunk)
+        Ok(())
     }
 }

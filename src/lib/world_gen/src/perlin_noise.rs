@@ -1,5 +1,5 @@
 use crate::{
-    common::math::lerp3,
+    common::math::{lerp3, lerp3_f32x4},
     pos::BlockPos,
     random::{LegacyRandom, Rng},
 };
@@ -7,6 +7,8 @@ use std::{array::from_fn, f64::consts::SQRT_3, sync::LazyLock};
 
 use bevy_math::{DVec2, DVec3, FloatExt};
 use const_str::starts_with;
+
+static mut GLOBAL_NOISE_COUNT: u64 = 0;
 
 //reference net.minecraft.world.level.levelgen.Noises
 //only shift and swamp have a different name in the resourcelocation, but we could rename them and
@@ -320,7 +322,13 @@ pub struct PerlinNoise<const N: usize> {
 }
 
 impl<const N: usize> PerlinNoise<N> {
+    pub fn gimme() -> u64 {
+        unsafe { GLOBAL_NOISE_COUNT }
+    }
     pub fn at(&self, point: DVec3) -> f64 {
+        unsafe {
+            GLOBAL_NOISE_COUNT += 1;
+        }
         let point = point / self.input_factor;
         let mut res = 0.0;
         let mut scale = 1.;
@@ -439,11 +447,20 @@ impl ImprovedNoise {
         let grid = grid.as_ivec3();
         let weird_delta =
             delta.with_y(delta.y - (delta.y.min(y_max) / y_scale + 1.0E-7).floor() * y_scale);
-        let (d, d1, d2, d3, d4, d5, d6, d7) = self.gradient(weird_delta, grid);
+        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(weird_delta, grid);
 
         let smooth = delta.map(smoothstep);
 
-        lerp3(smooth, d, d1, d2, d3, d4, d5, d6, d7)
+        let original = lerp3(smooth, d0, d1, d2, d3, d4, d5, d6, d7);
+        let val = unsafe {
+            lerp3_f32x4(
+                (smooth.x as f32, smooth.y as f32, smooth.z as f32),
+                [d0 as f32, d2 as f32, d4 as f32, d6 as f32].into(),
+                [d1 as f32, d3 as f32, d5 as f32, d7 as f32].into(),
+            ) as f64
+        };
+        println!("{}", val - original);
+        original
     }
 
     pub fn at(&self, at: DVec3) -> f64 {
@@ -452,11 +469,20 @@ impl ImprovedNoise {
         let delta = actual - grid;
 
         let grid = grid.as_ivec3();
-        let (d, d1, d2, d3, d4, d5, d6, d7) = self.gradient(delta, grid);
+        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(delta, grid);
 
         let smooth = delta.map(smoothstep);
 
-        lerp3(smooth, d, d1, d2, d3, d4, d5, d6, d7)
+        let original = lerp3(smooth, d0, d1, d2, d3, d4, d5, d6, d7);
+        let val = unsafe {
+            lerp3_f32x4(
+                (smooth.x as f32, smooth.y as f32, smooth.z as f32),
+                [d0 as f32, d2 as f32, d4 as f32, d6 as f32].into(),
+                [d1 as f32, d3 as f32, d5 as f32, d7 as f32].into(),
+            ) as f64
+        };
+        println!("{}", val - original);
+        original
     }
 
     #[inline]
