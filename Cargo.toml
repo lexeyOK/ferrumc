@@ -13,6 +13,7 @@ resolver = "2"
 #================= Members =================#
 members = [
     "src/bin",
+    "src/tests"
     "src/lib/adapters/anvil",
     "src/lib/adapters/anvil",
     "src/lib/adapters/nbt",
@@ -121,8 +122,6 @@ tokio = { version = "1.47.1", features = ["macros", "net", "rt", "sync", "time",
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-appender = "0.2.3"
-log = "0.4.27"
-console-subscriber = "0.4.1"
 
 # Concurrency/Parallelism
 parking_lot = "0.12.4"
@@ -132,7 +131,6 @@ rusty_pool = "0.7.0"
 crossbeam-queue = "0.3.12"
 
 # Network
-reqwest = { version = "0.12.22", features = ["json"] }
 ureq = "3.1.0"
 
 # Error handling
@@ -186,6 +184,7 @@ lzzzz = "2.0.0"
 yazi = "0.2.1"
 bzip2 = "0.6.0"
 lz4_flex = "0.11.5"
+zip = "5.1.1"
 
 # Database
 heed = "0.22.0"
@@ -209,6 +208,7 @@ bevy_math = "0.16.1"
 once_cell = "1.21.3"
 itertools = "0.14.0"
 const-str = "0.7.0"
+fastnoise2 = "0.3.2"
 
 # I/O
 memmap2 = "0.9.7"
