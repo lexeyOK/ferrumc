@@ -14,34 +14,41 @@ pub fn lerp2(delta: DVec2, start1: f64, end1: f64, start2: f64, end2: f64) -> f6
         .lerp(start2.lerp(end2, delta.x), delta.y)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn lerp3(
-    delta: DVec3,
-    start1: f64,
-    end1: f64,
-    start2: f64,
-    end2: f64,
-    start3: f64,
-    end3: f64,
-    start4: f64,
-    end4: f64,
+    delta: (f64, f64, f64),
+    start: (f64, f64, f64, f64),
+    end: (f64, f64, f64, f64),
 ) -> f64 {
-    lerp2(delta.xy(), start1, end1, start2, end2)
-        .lerp(lerp2(delta.xy(), start3, end3, start4, end4), delta.z)
+    fn lerp(start: f64, end: f64, t: f64) -> f64 {
+        start + (end - start) * t
+    }
+
+    let l0 = lerp(start.0, end.0, delta.0);
+    let l1 = lerp(start.1, end.1, delta.0);
+    let l2 = lerp(start.2, end.2, delta.0);
+    let l3 = lerp(start.3, end.3, delta.0);
+
+    let ll0 = lerp(l0, l1, delta.1);
+    let ll1 = lerp(l2, l3, delta.1);
+    lerp(ll0, ll1, delta.2)
 }
 
 use std::arch::x86_64::*;
-use std::simd::f32x4;
+use std::simd::f64x4;
 
-#[target_feature(enable = "sse,fma")]
-pub fn lerp3_f32x4(delta: (f32, f32, f32), start: f32x4, end: f32x4) -> f32 {
-    let start = start.into();
-    let end = end.into();
-    let t = _mm_set1_ps(delta.0);
-    let half_lerp = _mm_fnmadd_ps(start, t, start);
-    let lerp: f32x4 = _mm_fmadd_ps(end, t, half_lerp).into();
+#[target_feature(enable = "avx,fma")]
+pub fn lerp3_f64x4(
+    delta: (f64, f64, f64),
+    start: (f64, f64, f64, f64),
+    end: (f64, f64, f64, f64),
+) -> f64 {
+    let start = _mm256_set_pd(start.0, start.1, start.2, start.3);
+    let end = _mm256_set_pd(end.0, end.1, end.2, end.3);
+    let t = _mm256_set1_pd(delta.0);
+    let d = _mm256_sub_pd(end, start);
+    let lerp: f64x4 = _mm256_fmadd_pd(d, t, start).into();
     let [l0, l1, l2, l3] = lerp.to_array();
-    let ll0 = l3 + (l2 - l3) * delta.1;
-    let ll1 = l1 + (l0 - l1) * delta.1;
-    ll1 + (ll0 - ll1) * delta.2
+    let ll0 = l0 + (l1 - l0) * delta.1;
+    let ll1 = l2 + (l3 - l2) * delta.1;
+    ll0 + (ll1 - ll0) * delta.2
 }

@@ -1,9 +1,10 @@
 use crate::{
-    common::math::{lerp3, lerp3_f32x4},
+    common::math::lerp3,
     pos::BlockPos,
     random::{LegacyRandom, Rng},
 };
 use std::{array::from_fn, f64::consts::SQRT_3, sync::LazyLock};
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy_math::{DVec2, DVec3, FloatExt};
 use const_str::starts_with;
@@ -322,13 +323,7 @@ pub struct PerlinNoise<const N: usize> {
 }
 
 impl<const N: usize> PerlinNoise<N> {
-    pub fn gimme() -> u64 {
-        unsafe { GLOBAL_NOISE_COUNT }
-    }
     pub fn at(&self, point: DVec3) -> f64 {
-        unsafe {
-            GLOBAL_NOISE_COUNT += 1;
-        }
         let point = point / self.input_factor;
         let mut res = 0.0;
         let mut scale = 1.;
@@ -374,10 +369,27 @@ fn smoothstep(input: f64) -> f64 {
 }
 
 fn wrap(input: f64) -> f64 {
-    const ROUND_OFF: f64 = 2i32.pow(25) as f64;
+    const ROUND_OFF: f64 = 2u64.pow(25) as f64;
     input - ((input / ROUND_OFF).round() * ROUND_OFF)
 }
-
+const SIMPLEX_GRADIENT: [DVec3; 16] = [
+    DVec3::new(1.0, 1.0, 0.0),
+    DVec3::new(-1.0, 1.0, 0.0),
+    DVec3::new(1.0, -1.0, 0.0),
+    DVec3::new(-1.0, -1.0, 0.0),
+    DVec3::new(1.0, 0.0, 1.0),
+    DVec3::new(-1.0, 0.0, 1.0),
+    DVec3::new(1.0, 0.0, -1.0),
+    DVec3::new(-1.0, 0.0, -1.0),
+    DVec3::new(0.0, 1.0, 1.0),
+    DVec3::new(0.0, -1.0, 1.0),
+    DVec3::new(0.0, 1.0, -1.0),
+    DVec3::new(0.0, -1.0, -1.0),
+    DVec3::new(1.0, 1.0, 0.0),
+    DVec3::new(0.0, -1.0, 1.0),
+    DVec3::new(-1.0, 1.0, 0.0),
+    DVec3::new(0.0, -1.0, -1.0),
+];
 /// reference: net.minecraft.world.level.levelgen.synth.ImprovedNoise
 pub struct ImprovedNoise {
     p: [u8; 256],
@@ -443,24 +455,21 @@ impl ImprovedNoise {
         let actual = at + self.offset;
         let grid = actual.floor();
         let delta = actual - grid;
-
-        let grid = grid.as_ivec3();
+        let grid = grid.as_uvec3();
+        
+        let state = {
+            let result = grid.x ^ grid.y ^ grid.z;
+            let result = (result ^ (result >> 16)) ^ 0x7feb352d;
+            let result = (result ^ (result >> 15)) * 0x846ca68b;
+            result ^ (result >> 16)
+        };
         let weird_delta =
             delta.with_y(delta.y - (delta.y.min(y_max) / y_scale + 1.0E-7).floor() * y_scale);
-        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(weird_delta, grid);
+        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(weird_delta, state as u32);
 
         let smooth = delta.map(smoothstep);
-
-        let original = lerp3(smooth, d0, d1, d2, d3, d4, d5, d6, d7);
-        let val = unsafe {
-            lerp3_f32x4(
-                (smooth.x as f32, smooth.y as f32, smooth.z as f32),
-                [d0 as f32, d2 as f32, d4 as f32, d6 as f32].into(),
-                [d1 as f32, d3 as f32, d5 as f32, d7 as f32].into(),
-            ) as f64
-        };
-        println!("{}", val - original);
-        original
+        let val = lerp3(smooth.into(), (d0, d2, d4, d6), (d1, d3, d5, d7));
+        val
     }
 
     pub fn at(&self, at: DVec3) -> f64 {
@@ -468,40 +477,35 @@ impl ImprovedNoise {
         let grid = actual.floor();
         let delta = actual - grid;
 
-        let grid = grid.as_ivec3();
-        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(delta, grid);
+        let mut h = DefaultHasher::new();
+        grid.as_ivec3().hash(&mut h);
+        let state = h.finish();
+        let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(delta, state as u32);
 
         let smooth = delta.map(smoothstep);
-
-        let original = lerp3(smooth, d0, d1, d2, d3, d4, d5, d6, d7);
-        let val = unsafe {
-            lerp3_f32x4(
-                (smooth.x as f32, smooth.y as f32, smooth.z as f32),
-                [d0 as f32, d2 as f32, d4 as f32, d6 as f32].into(),
-                [d1 as f32, d3 as f32, d5 as f32, d7 as f32].into(),
-            ) as f64
-        };
-        println!("{}", val - original);
-        original
+        let val = lerp3(smooth.into(), (d0, d2, d4, d6), (d1, d3, d5, d7));
+        val
     }
 
     #[inline]
-    fn gradient(&self, delta: DVec3, grid: BlockPos) -> (f64, f64, f64, f64, f64, f64, f64, f64) {
-        let x = self.p(grid.x);
-        let x1 = self.p(grid.x + 1);
-        let y = self.p(x + grid.y);
-        let y1 = self.p(x + grid.y + 1);
-        let x1y = self.p(x1 + grid.y);
-        let x1y1 = self.p(x1 + grid.y + 1);
+    fn gradient(&self, delta: DVec3, state: u32) -> (f64, f64, f64, f64, f64, f64, f64, f64) {
+        let p0 = SIMPLEX_GRADIENT[(state & 0xF) as usize];
+        let p1 = SIMPLEX_GRADIENT[(state & 0xF0 >> 4) as usize];
+        let p2 = SIMPLEX_GRADIENT[(state & 0xF00 >> 8) as usize];
+        let p3 = SIMPLEX_GRADIENT[(state & 0xF000 >> 12) as usize];
+        let p4 = SIMPLEX_GRADIENT[(state & 0xF0000 >> 16) as usize];
+        let p5 = SIMPLEX_GRADIENT[(state & 0xF00000 >> 20) as usize];
+        let p6 = SIMPLEX_GRADIENT[(state & 0xF000000 >> 24) as usize];
+        let p7 = SIMPLEX_GRADIENT[(state & 0xF0000000 >> 28) as usize];
 
-        let d = self.grad_dot(y + grid.z, delta);
-        let d1 = self.grad_dot(x1y + grid.z, delta - DVec3::new(1.0, 0.0, 0.0));
-        let d2 = self.grad_dot(y1 + grid.z, delta - DVec3::new(0.0, 1.0, 0.0));
-        let d3 = self.grad_dot(x1y1 + grid.z, delta - DVec3::new(1.0, 1.0, 0.0));
-        let d4 = self.grad_dot(y + grid.z + 1, delta - DVec3::new(0.0, 0.0, 1.0));
-        let d5 = self.grad_dot(x1y + grid.z + 1, delta - DVec3::new(1.0, 0.0, 1.0));
-        let d6 = self.grad_dot(y1 + grid.z + 1, delta - DVec3::new(0.0, 1.0, 1.0));
-        let d7 = self.grad_dot(x1y1 + grid.z + 1, delta - DVec3::new(1.0, 1.0, 1.0));
+        let d = p0.dot(delta);
+        let d1 = p1.dot(delta - DVec3::new(1.0, 0.0, 0.0));
+        let d2 = p2.dot(delta - DVec3::new(0.0, 1.0, 0.0));
+        let d3 = p3.dot(delta - DVec3::new(1.0, 1.0, 0.0));
+        let d4 = p4.dot(delta - DVec3::new(0.0, 0.0, 1.0));
+        let d5 = p5.dot(delta - DVec3::new(1.0, 0.0, 1.0));
+        let d6 = p6.dot(delta - DVec3::new(0.0, 1.0, 1.0));
+        let d7 = p7.dot(delta - DVec3::new(1.0, 1.0, 1.0));
         (d, d1, d2, d3, d4, d5, d6, d7)
     }
 
@@ -512,24 +516,6 @@ impl ImprovedNoise {
 
     #[inline]
     fn grad_dot(&self, index: i32, p: DVec3) -> f64 {
-        const SIMPLEX_GRADIENT: [DVec3; 16] = [
-            DVec3::new(1.0, 1.0, 0.0),
-            DVec3::new(-1.0, 1.0, 0.0),
-            DVec3::new(1.0, -1.0, 0.0),
-            DVec3::new(-1.0, -1.0, 0.0),
-            DVec3::new(1.0, 0.0, 1.0),
-            DVec3::new(-1.0, 0.0, 1.0),
-            DVec3::new(1.0, 0.0, -1.0),
-            DVec3::new(-1.0, 0.0, -1.0),
-            DVec3::new(0.0, 1.0, 1.0),
-            DVec3::new(0.0, -1.0, 1.0),
-            DVec3::new(0.0, 1.0, -1.0),
-            DVec3::new(0.0, -1.0, -1.0),
-            DVec3::new(1.0, 1.0, 0.0),
-            DVec3::new(0.0, -1.0, 1.0),
-            DVec3::new(-1.0, 1.0, 0.0),
-            DVec3::new(0.0, -1.0, -1.0),
-        ];
         p.dot(SIMPLEX_GRADIENT[self.p(index) as usize & 15])
     }
 }
