@@ -21,3 +21,6 @@ regex = { workspace = true }
 craftflow-nbt = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
 bitcode = { workspace = true }
+zip = { workspace = true }
+fastnoise2 = { workspace = true }
+serde_path_to_error = "0.1.20"

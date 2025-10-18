@@ -3,6 +3,7 @@
 use proc_macro::TokenStream;
 
 mod commands;
+mod datapacks;
 mod helpers;
 mod nbt;
 mod net;
@@ -95,4 +96,9 @@ pub fn get_registry_entry(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn build_registry_packets(input: TokenStream) -> TokenStream {
     registries_packets::build_mapping(input)
+}
+
+#[proc_macro]
+pub fn testing_json_datapack_parcing_thinginy(input: TokenStream) -> TokenStream {
+    datapacks::build_density_function(input.into()).into()
 }

@@ -13,6 +13,10 @@ resolver = "2"
 #================= Members =================#
 members = [
     "src/bin",
+<<<<<<< Updated upstream
+=======
+    "src/tests",
+>>>>>>> Stashed changes
     "src/lib/adapters/anvil",
     "src/lib/adapters/anvil",
     "src/lib/adapters/nbt",
