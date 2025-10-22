@@ -2,6 +2,9 @@
 #![feature(more_float_constants)]
 #![feature(new_range_api)]
 #![feature(portable_simd)]
+#![feature(float_algebraic)]
+
+mod algebraic;
 mod biome;
 mod biome_chunk;
 pub mod block_can_survive;

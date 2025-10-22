@@ -13,14 +13,13 @@ pub fn lerp2(delta: DVec2, start1: f64, end1: f64, start2: f64, end2: f64) -> f6
         .lerp(end1, delta.x)
         .lerp(start2.lerp(end2, delta.x), delta.y)
 }
-
 pub fn lerp3(
     delta: (f64, f64, f64),
     start: (f64, f64, f64, f64),
     end: (f64, f64, f64, f64),
 ) -> f64 {
     fn lerp(start: f64, end: f64, t: f64) -> f64 {
-        start + (end - start) * t
+        start.algebraic_add(t.algebraic_mul(end.algebraic_sub(start)))
     }
 
     let l0 = lerp(start.0, end.0, delta.0);

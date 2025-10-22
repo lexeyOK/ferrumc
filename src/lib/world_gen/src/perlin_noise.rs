@@ -1,10 +1,11 @@
 use crate::{
+    algebraic::AlgebraicExt,
     common::math::lerp3,
     pos::BlockPos,
     random::{LegacyRandom, Rng},
 };
-use std::{array::from_fn, f64::consts::SQRT_3, sync::LazyLock};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::{array::from_fn, f64::consts::SQRT_3, sync::LazyLock};
 
 use bevy_math::{DVec2, DVec3, FloatExt};
 use const_str::starts_with;
@@ -325,11 +326,17 @@ pub struct PerlinNoise<const N: usize> {
 impl<const N: usize> PerlinNoise<N> {
     pub fn at(&self, point: DVec3) -> f64 {
         let point = point / self.input_factor;
-        let mut res = 0.0;
-        let mut scale = 1.;
+        let mut res = 0.0f64;
+        let mut scale = 1.0f64;
 
         for (noise, amp) in self.noise_levels.iter().zip(self.amplitudes) {
-            res += amp * noise.at((point * scale).map(wrap)) / scale;
+            res = res.algebraic_add(
+                amp.algebraic_mul(
+                    noise
+                        .at(point.algebraic_mul((scale, scale, scale).into()).map(wrap))
+                        .algebraic_div(scale),
+                ),
+            );
             scale *= 2.0;
         }
 
@@ -365,13 +372,29 @@ impl<const N: usize> PerlinNoise<N> {
 }
 
 fn smoothstep(input: f64) -> f64 {
-    input * input * input * (input * (input * 6.0 - 15.0) + 10.0)
+    // input * input * input * (input * (input * 6.0 - 15.0) + 10.0)
+
+    input
+        .algebraic_mul(input)
+        .algebraic_mul(input)
+        .algebraic_mul(
+            input
+                .algebraic_mul(input.algebraic_mul(6.0).algebraic_sub(15.0))
+                .algebraic_add(10.0),
+        )
 }
 
 fn wrap(input: f64) -> f64 {
     const ROUND_OFF: f64 = 2u64.pow(25) as f64;
-    input - ((input / ROUND_OFF).round() * ROUND_OFF)
+    //input - ((input / ROUND_OFF).round() * ROUND_OFF)
+    input.algebraic_sub(
+        input
+            .algebraic_div(ROUND_OFF)
+            .round()
+            .algebraic_mul(ROUND_OFF),
+    )
 }
+
 const SIMPLEX_GRADIENT: [DVec3; 16] = [
     DVec3::new(1.0, 1.0, 0.0),
     DVec3::new(-1.0, 1.0, 0.0),
@@ -455,9 +478,9 @@ impl ImprovedNoise {
         let actual = at + self.offset;
         let grid = actual.floor();
         let delta = actual - grid;
-        let grid = grid.as_uvec3();
-        
+
         let state = {
+            let grid = grid.as_uvec3();
             let result = grid.x ^ grid.y ^ grid.z;
             let result = (result ^ (result >> 16)) ^ 0x7feb352d;
             let result = (result ^ (result >> 15)) * 0x846ca68b;
@@ -476,10 +499,13 @@ impl ImprovedNoise {
         let actual = at + self.offset;
         let grid = actual.floor();
         let delta = actual - grid;
-
-        let mut h = DefaultHasher::new();
-        grid.as_ivec3().hash(&mut h);
-        let state = h.finish();
+        let state = {
+            let grid = grid.as_uvec3();
+            let result = grid.x ^ grid.y ^ grid.z;
+            let result = (result ^ (result >> 16)) ^ 0x7feb352d;
+            let result = (result ^ (result >> 15)) * 0x846ca68b;
+            result ^ (result >> 16)
+        };
         let (d0, d1, d2, d3, d4, d5, d6, d7) = self.gradient(delta, state as u32);
 
         let smooth = delta.map(smoothstep);
@@ -497,15 +523,15 @@ impl ImprovedNoise {
         let p5 = SIMPLEX_GRADIENT[(state & 0xF00000 >> 20) as usize];
         let p6 = SIMPLEX_GRADIENT[(state & 0xF000000 >> 24) as usize];
         let p7 = SIMPLEX_GRADIENT[(state & 0xF0000000 >> 28) as usize];
-
-        let d = p0.dot(delta);
-        let d1 = p1.dot(delta - DVec3::new(1.0, 0.0, 0.0));
-        let d2 = p2.dot(delta - DVec3::new(0.0, 1.0, 0.0));
-        let d3 = p3.dot(delta - DVec3::new(1.0, 1.0, 0.0));
-        let d4 = p4.dot(delta - DVec3::new(0.0, 0.0, 1.0));
-        let d5 = p5.dot(delta - DVec3::new(1.0, 0.0, 1.0));
-        let d6 = p6.dot(delta - DVec3::new(0.0, 1.0, 1.0));
-        let d7 = p7.dot(delta - DVec3::new(1.0, 1.0, 1.0));
+        use crate::algebraic::*;
+        let d = p0.algebraic_dot(delta);
+        let d1 = p1.algebraic_dot(delta.algebraic_sub(DVec3::new(1.0, 0.0, 0.0)));
+        let d2 = p2.algebraic_dot(delta.algebraic_sub(DVec3::new(0.0, 1.0, 0.0)));
+        let d3 = p3.algebraic_dot(delta.algebraic_sub(DVec3::new(1.0, 1.0, 0.0)));
+        let d4 = p4.algebraic_dot(delta.algebraic_sub(DVec3::new(0.0, 0.0, 1.0)));
+        let d5 = p5.algebraic_dot(delta.algebraic_sub(DVec3::new(1.0, 0.0, 1.0)));
+        let d6 = p6.algebraic_dot(delta.algebraic_sub(DVec3::new(0.0, 1.0, 1.0)));
+        let d7 = p7.algebraic_dot(delta.algebraic_sub(DVec3::new(1.0, 1.0, 1.0)));
         (d, d1, d2, d3, d4, d5, d6, d7)
     }
 
