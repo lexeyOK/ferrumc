@@ -51,6 +51,13 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
     steps:
+      - name: Put temp and cargo home on D drive
+        if: runner.os == 'Windows'
+        run: |
+          mkdir "D:\Temp"
+          mkdir "D:\.cargo"
+          echo "TEMP=D:\Temp" >> $env:GITHUB_ENV
+          echo "CARGO_HOME=D:\.cargo" >> $env:GITHUB_ENV
       - name: Checkout repository
         uses: actions/checkout@v5
       - name: Install Rust nightly
