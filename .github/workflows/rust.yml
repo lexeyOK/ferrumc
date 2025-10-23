@@ -56,8 +56,8 @@ jobs:
         run: |
           mkdir "D:\Temp"
           mkdir "D:\.cargo"
-          echo "TEMP=D:\Temp" >> $env:GITHUB_ENV
-          echo "CARGO_HOME=D:\.cargo" >> $env:GITHUB_ENV
+          echo "TEMP=D:\Temp" >> $GITHUB_ENV
+          echo "CARGO_HOME=D:\.cargo" >> $GITHUB_ENV
       - name: Checkout repository
         uses: actions/checkout@v5
       - name: Install Rust nightly
